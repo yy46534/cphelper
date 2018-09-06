@@ -34,8 +34,8 @@
               </td>
               <td class="cp-col">{{ cp.name }}</td>
               <td class="oc-col">{{ cp.oc }}</td>
-              <td class="gp-col">{{ cp.group.name }}</td>
-              <td class="gpoc-col">{{ cp.group.oc }}</td>
+              <td class="gp-col">{{ getGroup(cp.groupId).name }}</td>
+              <td class="gpoc-col">{{ getGroup(cp.groupId).oc }}</td>
               <td class="timer-col">
                 <timer :isCounting="cp.occupied"/>
               </td>
@@ -139,7 +139,7 @@
 </style>
 
 <script>
-import { mapState, mapMutations } from 'vuex'
+import { mapState, mapMutations, mapGetters } from 'vuex'
 import TopBar from './TopBar'
 import IconBtn from './IconBtn'
 import EditForm from './EditForm'
@@ -173,17 +173,6 @@ export default {
         { key: 'remarks', label: 'Remarks' },
         { key: 'actions', label: '' }
       ]
-      // checkpoints: [
-      //   { id: 0, name: '1/F', oc: 'Nicole', group: {}, time: '', remarks: '', occupied: false, open: true },
-      //   { id: 1, name: '2/F', oc: 'Helen', group: {}, time: '', remarks: '', occupied: false, open: true },
-      //   { id: 2, name: '3/F', oc: 'Becky', group: {}, time: '', remarks: 'waiting for scissors pleeeeeease', occupied: false, open: false, _rowVariant: 'closed' },
-      //   { id: 3, name: '4/F', oc: 'Kelvin', group: {}, time: '', remarks: '', occupied: false, open: true }
-      // ],
-      // groups: [
-      //   { id: 0, name: 'ABC', oc: 'Apple', cpId: -1, occupied: false },
-      //   { id: 1, name: 'BTO', oc: 'Jack', cpId: -1, occupied: false },
-      //   { id: 2, name: 'FFL', oc: 'Joseph', cpId: -1, occupied: false }
-      // ]
     }
   },
   computed: {
@@ -204,27 +193,33 @@ export default {
       'removeCheckpoint',
       'updateCheckpoint'
     ]),
+    ...mapGetters([
+      'checkpointById',
+      'groupById'
+    ]),
+    getGroup(cp) {
+      const group = this.groupById(cp.groupId)
+      if (group) {
+        return group
+      } else {
+        return {}
+      }
+    },
     arrive(group, cp) {
-      group.occupied = true
-      group.cpId = cp.id
-      cp.group = group
-      cp.occupied = true
+      const newGp = { ...group, occupied: true, cpId: cp.id }
+      const newCp = { ...cp, occupied: true, groupId: group.id }
+      this.updateGroup(newGp)
+      this.updateCheckpoint(newCp)
     },
     leave(cp) {
-      cp.group.occupied = false
-      cp.group.cpId = -1
-      cp.group = {}
-      cp.occupied = false
+      const newGp = { ...this.groups[cp.groupId], occupied: false, cpId: -1 }
+      const newCp = { ...cp, occupied: false, groupId: -1 }
+      this.updateGroup(newGp)
+      this.updateCheckpoint(newCp)
     },
     submitCp() {
       if (this.editingCp) {
-        Object.assign(this.editingCp, this.formCp)
-        if (!this.editingCp.open) {
-          this.editingCp.group.occupied = false
-          this.editingCp.group.cpId = -1
-          this.editingCp.group = {}
-          this.editingCp.occupied = false
-        }
+        this.updateCheckpoint(this.formCp)
       } else {
         this.addCheckpoint(
           {
@@ -241,7 +236,6 @@ export default {
     submitGp() {
       if (this.editingGp) {
         this.updateGroup(this.formGp)
-        // Object.assign(this.editingGp, this.formGp)
       } else {
         this.addGroup({ ...this.formGp, occupied: false })
       }

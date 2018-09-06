@@ -18,7 +18,8 @@ const state = {
 }
 
 const getters = {
-
+  checkpointById: (id) => state.checkpoints[id],
+  groupById: (id) => state.groups[id]
 }
 
 function clearGroup(cp) {
