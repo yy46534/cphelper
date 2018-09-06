@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+@import url('https://fonts.googleapis.com/css?family=Roboto');
+
+:root {
+    --border-color: #dee2e6;
+    --shade-color: #c5c9cc;
+}
+
+#app {
+  font-family: 'Roboto', Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-align: center;
+  font-size: 14px;
+  color: #2c3e50;
+  padding: 20px 2%;
+}
+
+/* override boostrap default settings */
+div.dropdown-menu {
+  min-width: 3rem;
+  padding: .2rem 0;
+}
+button.dropdown-item {
+  font-size: 13px;
+}
