@@ -34,8 +34,8 @@
               </td>
               <td class="cp-col">{{ cp.name }}</td>
               <td class="oc-col">{{ cp.oc }}</td>
-              <td class="gp-col">{{ getGroup(cp.groupId).name }}</td>
-              <td class="gpoc-col">{{ getGroup(cp.groupId).oc }}</td>
+              <td class="gp-col">{{ groupName(cp.groupId) }}</td>
+              <td class="gpoc-col">{{ groupOc(cp.groupId) }}</td>
               <td class="timer-col">
                 <timer :isCounting="cp.occupied"/>
               </td>
@@ -139,11 +139,24 @@
 </style>
 
 <script>
-import { mapState, mapMutations, mapGetters } from 'vuex'
+import Firebase from 'firebase'
 import TopBar from './TopBar'
 import IconBtn from './IconBtn'
 import EditForm from './EditForm'
 import Timer from './Timer'
+
+var config = {
+  apiKey: 'AIzaSyBwyCme05z-eUQ1Srh-xAsMfvLaLCy1NJ0',
+  authDomain: 'vuejs-firebase-01-24b20.firebaseapp.com',
+  databaseURL: 'https://vuejs-firebase-01-24b20.firebaseio.com',
+  projectId: 'vuejs-firebase-01-24b20',
+  storageBucket: 'vuejs-firebase-01-24b20.appspot.com',
+  messagingSenderId: '786678737007'
+}
+let app = Firebase.initializeApp(config)
+let db = app.database()
+let checkpointsRef = db.ref('checkpoints')
+let groupsRef = db.ref('groups')
 
 export default {
   components: {
@@ -151,6 +164,10 @@ export default {
     'icon-btn': IconBtn,
     'edit-form': EditForm,
     'timer': Timer
+  },
+  firebase: {
+    checkpoints: checkpointsRef,
+    groups: groupsRef
   },
   data() {
     return {
@@ -176,7 +193,6 @@ export default {
     }
   },
   computed: {
-    ...mapState([ 'checkpoints', 'groups' ]),
     showCpBar() {
       return !this.showCpForm
     },
@@ -184,46 +200,38 @@ export default {
       return !this.showGpForm
     }
   },
+  created() {
+    let keyRef = groupsRef.child('-LLmPMFQnPqUDwfwLcpz')
+    keyRef.once('value', (e) => console.log(e.val().name))
+  },
   methods: {
-    ...mapMutations([
-      'addGroup',
-      'removeGroup',
-      'updateGroup',
-      'addCheckpoint',
-      'removeCheckpoint',
-      'updateCheckpoint'
-    ]),
-    ...mapGetters([
-      'checkpointById',
-      'groupById'
-    ]),
-    getGroup(cp) {
-      const group = this.groupById(cp.groupId)
-      if (group) {
-        return group
-      } else {
-        return {}
-      }
-    },
     arrive(group, cp) {
-      const newGp = { ...group, occupied: true, cpId: cp.id }
-      const newCp = { ...cp, occupied: true, groupId: group.id }
-      this.updateGroup(newGp)
-      this.updateCheckpoint(newCp)
+      groupsRef.child(group['.key']).update({
+        occupied: true,
+        cpId: cp['.key']
+      })
+      checkpointsRef.child(cp['.key']).update({
+        occupied: true,
+        groupId: group['.key']
+      })
     },
     leave(cp) {
-      const newGp = { ...this.groups[cp.groupId], occupied: false, cpId: -1 }
-      const newCp = { ...cp, occupied: false, groupId: -1 }
-      this.updateGroup(newGp)
-      this.updateCheckpoint(newCp)
+      groupsRef.child(cp.groupId).update({
+        occupied: false,
+        cpId: ''
+      })
+      checkpointsRef.child(cp['.key']).update({
+        occupied: false,
+        groupId: ''
+      })
     },
     submitCp() {
       if (this.editingCp) {
-        this.updateCheckpoint(this.formCp)
+
       } else {
-        this.addCheckpoint(
+        checkpointsRef.push(
           {
-            group: {},
+            groupId: '',
             time: '',
             remark: '',
             occupied: false,
@@ -235,9 +243,9 @@ export default {
     },
     submitGp() {
       if (this.editingGp) {
-        this.updateGroup(this.formGp)
+
       } else {
-        this.addGroup({ ...this.formGp, occupied: false })
+        groupsRef.push({ ...this.formGp, occupied: false, cpId: '' })
       }
       this.editingGp = {}
       this.showGpForm = false
@@ -261,11 +269,9 @@ export default {
       this.showCpForm = true
     },
     deleteCp(cp) {
-      let index = this.checkpoints.indexOf(cp)
-      cp.group.occupied = false
-      cp.group.cpId = -1
-      if (index > -1) {
-        this.checkpoints.splice(index, 1)
+      checkpointsRef.child(cp['.key']).remove()
+      if (cp.groupId !== '') {
+        groupsRef.child(cp.groupId).update({ cpId: '' })
       }
     },
     editGp(group) {
@@ -274,7 +280,10 @@ export default {
       this.showGpForm = true
     },
     deleteGp(group) {
-      this.removeGroup(group)
+      groupsRef.child(group['.key']).remove()
+      if (group.cpId !== '') {
+        checkpointsRef.child(group.cpId).update({ groupId: '' })
+      }
     }
   }
 }
