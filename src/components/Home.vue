@@ -102,19 +102,11 @@
 <script>
 import Firebase from 'firebase'
 import 'Firebase/firestore'
+import config from '../../config/dbconfig'
 import TopBar from './TopBar'
 import IconBtn from './IconBtn'
 import EditForm from './EditForm'
 import Timer from './Timer'
-
-const config = {
-  apiKey: 'AIzaSyBZ2Rai2fTUdCewiZ950-y8HfwPsv8e4XY',
-  authDomain: 'fire-store-test-9774e.firebaseapp.com',
-  databaseURL: 'https://fire-store-test-9774e.firebaseio.com',
-  projectId: 'fire-store-test-9774e',
-  storageBucket: '',
-  messagingSenderId: '169827584631'
-}
 
 const app = Firebase.initializeApp(config)
 const db = app.firestore()
