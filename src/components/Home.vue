@@ -29,13 +29,13 @@
           <tbody>
             <tr v-for="(cp, i) in checkpoints" :key="i" :class="{ closed: !cp.open }">
               <td class="edit-col" v-show="showEditCp">
-                <icon-btn size="sm" icon="edit" @click="editCp(cp)"/>
+                <icon-btn size="sm" icon="edit" @click="displayEditCp(cp)"/>
                 <icon-btn size="sm" icon="remove" @click="deleteCp(cp)" />
               </td>
               <td class="cp-col">{{ cp.name }}</td>
               <td class="oc-col">{{ cp.oc }}</td>
-              <td class="gp-col">{{ groupName(cp.groupId) }}</td>
-              <td class="gpoc-col">{{ groupOc(cp.groupId) }}</td>
+              <td class="gp-col"> </td>
+              <td class="gpoc-col"> </td>
               <td class="timer-col">
                 <timer :isCounting="cp.occupied"/>
               </td>
@@ -85,7 +85,7 @@
           <tbody>
             <tr v-for="(gp, i) in groups" :key="i">
               <td class="edit-col" v-if="showEditGp">
-                <icon-btn size="sm" icon="edit" @click="editGp(gp)" />
+                <icon-btn size="sm" icon="edit" @click="displayEditGp(gp)" />
                 <icon-btn size="sm" icon="remove" @click="deleteGp(gp)" />
               </td>
               <td>{{ gp.name }}</td>
@@ -98,6 +98,164 @@
     </b-container>
   </div>
 </template>
+
+<script>
+import Firebase from 'firebase'
+import 'Firebase/firestore'
+import TopBar from './TopBar'
+import IconBtn from './IconBtn'
+import EditForm from './EditForm'
+import Timer from './Timer'
+
+const config = {
+  apiKey: 'AIzaSyBZ2Rai2fTUdCewiZ950-y8HfwPsv8e4XY',
+  authDomain: 'fire-store-test-9774e.firebaseapp.com',
+  databaseURL: 'https://fire-store-test-9774e.firebaseio.com',
+  projectId: 'fire-store-test-9774e',
+  storageBucket: '',
+  messagingSenderId: '169827584631'
+}
+
+const app = Firebase.initializeApp(config)
+const db = app.firestore()
+const settings = { timestampsInSnapshots: true }
+
+db.settings(settings)
+
+const checkpointsRef = db.collection('checkpoints')
+const groupsRef = db.collection('groups')
+
+export default {
+  components: {
+    'top-bar': TopBar,
+    'icon-btn': IconBtn,
+    'edit-form': EditForm,
+    'timer': Timer
+  },
+  data() {
+    return {
+      checkpoints: [],
+      groups: [],
+      showDropdown: false,
+      showCpForm: false,
+      showGpForm: false,
+      showEditCp: false,
+      showEditGp: false,
+      editingGp: null,
+      editingCp: null,
+      isEditCp: false,
+      formCp: { },
+      formGp: { },
+      cpFields: [
+        { key: 'cp', label: 'CP' },
+        { key: 'oc', label: 'OC' },
+        { key: 'gp', label: 'GP' },
+        { key: 'gpoc', label: 'OC' },
+        { key: 'time', label: 'Time' },
+        { key: 'remarks', label: 'Remarks' },
+        { key: 'actions', label: '' }
+      ]
+    }
+  },
+  firestore () {
+    return {
+      checkpoints: checkpointsRef,
+      groups: groupsRef
+    }
+  },
+  computed: {
+    showCpBar() {
+      return !this.showCpForm
+    },
+    showGpBar() {
+      return !this.showGpForm
+    }
+  },
+  methods: {
+    arrive(group, cp) {
+      groupsRef.doc(group.id).update({
+        occupied: true,
+        cpId: cp.id
+      })
+      checkpointsRef.doc(cp.id).update({
+        occupied: true,
+        groupId: group.id
+      })
+    },
+    leave(cp) {
+      groupsRef.doc(cp.groupId).update({
+        occupied: false,
+        cpId: ''
+      })
+      checkpointsRef.doc(cp.id).update({
+        occupied: false,
+        groupId: ''
+      })
+    },
+    submitCp() {
+      if (this.editingCp) {
+
+      } else {
+        checkpointsRef.add(
+          {
+            groupId: '',
+            time: '',
+            remark: '',
+            occupied: false,
+            open: true,
+            ...this.formCp
+          })
+      }
+      this.showCpForm = false
+    },
+    submitGp() {
+      if (this.editingGp) {
+
+      } else {
+        groupsRef.add({ ...this.formGp, occupied: false, cpId: '' })
+      }
+      this.editingGp = {}
+      this.showGpForm = false
+      this.formGp = {}
+    },
+    deleteCp(cp) {
+      if (cp.groupId !== '') {
+        groupsRef.doc(cp.groupId).update({ cpId: '' })
+      }
+      checkpointsRef.doc(cp.id).delete()
+    },
+
+    deleteGp(group) {
+      if (group.cpId !== '') {
+        checkpointsRef.doc(group.cpId).update({ groupId: '' })
+      }
+      groupsRef.doc(group.id).delete()
+    },
+    displayEditCp(cp) {
+      this.formCp = { ...cp }
+      this.editingCp = cp
+      this.showCpForm = true
+    },
+    displayEditGp(group) {
+      this.formGp = { ...group }
+      this.editingGp = group
+      this.showGpForm = true
+    },
+    changeFormStatus(value) {
+      this.formCp.open = value
+    },
+    displayAddCp() {
+      this.formCp = { open: true }
+      this.editingCp = null
+      this.showCpForm = true
+    },
+    displayAddGp() {
+      this.editingGp = null
+      this.showGpForm = true
+    }
+  }
+}
+</script>
 
 <style scoped>
 .table-top {
@@ -137,155 +295,3 @@
   margin-right: 5px;
 }
 </style>
-
-<script>
-import Firebase from 'firebase'
-import TopBar from './TopBar'
-import IconBtn from './IconBtn'
-import EditForm from './EditForm'
-import Timer from './Timer'
-
-var config = {
-  apiKey: 'AIzaSyBwyCme05z-eUQ1Srh-xAsMfvLaLCy1NJ0',
-  authDomain: 'vuejs-firebase-01-24b20.firebaseapp.com',
-  databaseURL: 'https://vuejs-firebase-01-24b20.firebaseio.com',
-  projectId: 'vuejs-firebase-01-24b20',
-  storageBucket: 'vuejs-firebase-01-24b20.appspot.com',
-  messagingSenderId: '786678737007'
-}
-let app = Firebase.initializeApp(config)
-let db = app.database()
-let checkpointsRef = db.ref('checkpoints')
-let groupsRef = db.ref('groups')
-
-export default {
-  components: {
-    'top-bar': TopBar,
-    'icon-btn': IconBtn,
-    'edit-form': EditForm,
-    'timer': Timer
-  },
-  firebase: {
-    checkpoints: checkpointsRef,
-    groups: groupsRef
-  },
-  data() {
-    return {
-      showDropdown: false,
-      showCpForm: false,
-      showGpForm: false,
-      showEditCp: false,
-      showEditGp: false,
-      editingGp: null,
-      editingCp: null,
-      isEditCp: false,
-      formCp: { },
-      formGp: { },
-      cpFields: [
-        { key: 'cp', label: 'CP' },
-        { key: 'oc', label: 'OC' },
-        { key: 'gp', label: 'GP' },
-        { key: 'gpoc', label: 'OC' },
-        { key: 'time', label: 'Time' },
-        { key: 'remarks', label: 'Remarks' },
-        { key: 'actions', label: '' }
-      ]
-    }
-  },
-  computed: {
-    showCpBar() {
-      return !this.showCpForm
-    },
-    showGpBar() {
-      return !this.showGpForm
-    }
-  },
-  created() {
-    let keyRef = groupsRef.child('-LLmPMFQnPqUDwfwLcpz')
-    keyRef.once('value', (e) => console.log(e.val().name))
-  },
-  methods: {
-    arrive(group, cp) {
-      groupsRef.child(group['.key']).update({
-        occupied: true,
-        cpId: cp['.key']
-      })
-      checkpointsRef.child(cp['.key']).update({
-        occupied: true,
-        groupId: group['.key']
-      })
-    },
-    leave(cp) {
-      groupsRef.child(cp.groupId).update({
-        occupied: false,
-        cpId: ''
-      })
-      checkpointsRef.child(cp['.key']).update({
-        occupied: false,
-        groupId: ''
-      })
-    },
-    submitCp() {
-      if (this.editingCp) {
-
-      } else {
-        checkpointsRef.push(
-          {
-            groupId: '',
-            time: '',
-            remark: '',
-            occupied: false,
-            open: true,
-            ...this.formCp
-          })
-      }
-      this.showCpForm = false
-    },
-    submitGp() {
-      if (this.editingGp) {
-
-      } else {
-        groupsRef.push({ ...this.formGp, occupied: false, cpId: '' })
-      }
-      this.editingGp = {}
-      this.showGpForm = false
-      this.formGp = {}
-    },
-    changeFormStatus(value) {
-      this.formCp.open = value
-    },
-    displayAddCp() {
-      this.formCp = { open: true }
-      this.editingCp = null
-      this.showCpForm = true
-    },
-    displayAddGp() {
-      this.editingGp = null
-      this.showGpForm = true
-    },
-    editCp(cp) {
-      this.formCp = { ...cp }
-      this.editingCp = cp
-      this.showCpForm = true
-    },
-    deleteCp(cp) {
-      checkpointsRef.child(cp['.key']).remove()
-      if (cp.groupId !== '') {
-        groupsRef.child(cp.groupId).update({ cpId: '' })
-      }
-    },
-    editGp(group) {
-      this.formGp = { ...group }
-      this.editingGp = group
-      this.showGpForm = true
-    },
-    deleteGp(group) {
-      groupsRef.child(group['.key']).remove()
-      if (group.cpId !== '') {
-        checkpointsRef.child(group.cpId).update({ groupId: '' })
-      }
-    }
-  }
-}
-</script>
-
