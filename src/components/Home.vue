@@ -34,8 +34,8 @@
               </td>
               <td class="cp-col">{{ cp.name }}</td>
               <td class="oc-col">{{ cp.oc }}</td>
-              <td class="gp-col"> </td>
-              <td class="gpoc-col"> </td>
+              <td class="gp-col">{{ cp.group.name }} </td>
+              <td class="gpoc-col">{{ cp.group.oc }}</td>
               <td class="timer-col">
                 <timer :isCounting="cp.occupied"/>
               </td>
@@ -128,6 +128,7 @@ export default {
     return {
       checkpoints: [],
       groups: [],
+      cpGroups: {},
       showDropdown: false,
       showCpForm: false,
       showGpForm: false,
@@ -149,12 +150,13 @@ export default {
       ]
     }
   },
-  firestore () {
-    return {
-      checkpoints: checkpointsRef,
-      groups: groupsRef
-    }
-  },
+  // use manual binding in mounted
+  // firestore () {
+  //   return {
+  //     checkpoints: checkpointsRef,
+  //     groups: groupsRef
+  //   }
+  // },
   computed: {
     showCpBar() {
       return !this.showCpForm
@@ -162,6 +164,24 @@ export default {
     showGpBar() {
       return !this.showGpForm
     }
+  },
+  mounted() {
+    this.$bind('groups', groupsRef)
+      .then(() => {
+        // groups loaded, set onSnapshot
+        this.groups.forEach(group => {
+          groupsRef.doc(group.id).onSnapshot(gp => {
+            let cpId = gp.data().cpId
+            if (cpId !== '') {
+              checkpointsRef.doc(cpId).update({ group: { name: gp.data().name, oc: gp.data().oc } })
+            }
+          })
+        })
+      })
+      .catch(err => {
+        console.log('error in loading', err)
+      })
+    this.$bind('checkpoints', checkpointsRef)
   },
   methods: {
     arrive(group, cp) {
@@ -171,7 +191,8 @@ export default {
       })
       checkpointsRef.doc(cp.id).update({
         occupied: true,
-        groupId: group.id
+        groupId: group.id,
+        group: group
       })
     },
     leave(cp) {
@@ -181,18 +202,20 @@ export default {
       })
       checkpointsRef.doc(cp.id).update({
         occupied: false,
-        groupId: ''
+        groupId: '',
+        group: {}
       })
     },
     submitCp() {
       if (this.editingCp) {
-
+        checkpointsRef.doc(this.editingCp.id).update({ ...this.formCp })
       } else {
         checkpointsRef.add(
           {
             groupId: '',
+            group: {},
             time: '',
-            remark: '',
+            remarks: '',
             occupied: false,
             open: true,
             ...this.formCp
@@ -202,9 +225,18 @@ export default {
     },
     submitGp() {
       if (this.editingGp) {
-
+        groupsRef.doc(this.editingGp.id).update({ ...this.formGp })
       } else {
         groupsRef.add({ ...this.formGp, occupied: false, cpId: '' })
+        .then(docRef => {
+          // watch change of gp info, change gp info in cp accordingly
+          groupsRef.doc(docRef.id).onSnapshot(gp => {
+            let cpId = gp.data().cpId
+            if (cpId !== '') {
+              checkpointsRef.doc(cpId).update({ group: { name: gp.data().name, oc: gp.data().oc } })
+            }
+          })
+        })
       }
       this.editingGp = {}
       this.showGpForm = false
