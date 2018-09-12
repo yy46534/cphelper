@@ -37,7 +37,9 @@
               <td class="gp-col">{{ cp.group.name }} </td>
               <td class="gpoc-col">{{ cp.group.oc }}</td>
               <td class="timer-col">
-                <timer :isCounting="cp.occupied"/>
+                <timer 
+                  :initial="cpInitialTime[cp.id]" :isCounting="cp.occupied"
+                  @stopTimer="cpInitialTime[cp.id] = 0" />
               </td>
               <td class="remarks-col">{{ cp.remarks }}</td>
               <td class="actions-col">
@@ -128,7 +130,7 @@ export default {
     return {
       checkpoints: [],
       groups: [],
-      cpGroups: {},
+      cpInitialTime: {},
       showDropdown: false,
       showCpForm: false,
       showGpForm: false,
@@ -168,20 +170,24 @@ export default {
   mounted() {
     this.$bind('groups', groupsRef)
       .then(() => {
-        // groups loaded, set onSnapshot
+        // groups loaded, set onSnapshot watchGroup
         this.groups.forEach(group => {
-          groupsRef.doc(group.id).onSnapshot(gp => {
-            let cpId = gp.data().cpId
-            if (cpId !== '') {
-              checkpointsRef.doc(cpId).update({ group: { name: gp.data().name, oc: gp.data().oc } })
-            }
-          })
+          this.watchGroup(group.id)
         })
       })
       .catch(err => {
-        console.log('error in loading', err)
+        console.log('error in loading groups', err)
       })
     this.$bind('checkpoints', checkpointsRef)
+      .then(() => {
+        this.checkpoints.forEach(cp => {
+          this.setCpInitialTime(cp)
+          this.watchCheckpoint(cp.id)
+        })
+      })
+      .catch(err => {
+        console.log('error in loading checkpoints', err)
+      })
   },
   methods: {
     arrive(group, cp) {
@@ -192,7 +198,8 @@ export default {
       checkpointsRef.doc(cp.id).update({
         occupied: true,
         groupId: group.id,
-        group: group
+        group: group,
+        created: Date.now()
       })
     },
     leave(cp) {
@@ -209,16 +216,22 @@ export default {
     submitCp() {
       if (this.editingCp) {
         checkpointsRef.doc(this.editingCp.id).update({ ...this.formCp })
+        // if cp status change from open to close
+        if (this.editingCp.groupId !== '' && this.editingCp.open && !this.formCp.open) {
+          checkpointsRef.doc(this.editingCp.id).update({ occupied: false })
+          groupsRef.doc(this.editingCp.groupId).update({ cpId: '', occupied: false })
+        }
       } else {
         checkpointsRef.add(
           {
             groupId: '',
             group: {},
-            time: '',
+            created: Date.now(),
             remarks: '',
             occupied: false,
-            open: true,
             ...this.formCp
+          }).then(docRef => {
+            this.watchCheckpoint(docRef.id)
           })
       }
       this.showCpForm = false
@@ -229,13 +242,7 @@ export default {
       } else {
         groupsRef.add({ ...this.formGp, occupied: false, cpId: '' })
         .then(docRef => {
-          // watch change of gp info, change gp info in cp accordingly
-          groupsRef.doc(docRef.id).onSnapshot(gp => {
-            let cpId = gp.data().cpId
-            if (cpId !== '') {
-              checkpointsRef.doc(cpId).update({ group: { name: gp.data().name, oc: gp.data().oc } })
-            }
-          })
+          this.watchGroup(docRef.id)
         })
       }
       this.editingGp = {}
@@ -244,16 +251,44 @@ export default {
     },
     deleteCp(cp) {
       if (cp.groupId !== '') {
-        groupsRef.doc(cp.groupId).update({ cpId: '' })
+        groupsRef.doc(cp.groupId).update({ occupied: false, cpId: '' })
       }
       checkpointsRef.doc(cp.id).delete()
     },
 
     deleteGp(group) {
       if (group.cpId !== '') {
-        checkpointsRef.doc(group.cpId).update({ groupId: '' })
+        checkpointsRef.doc(group.cpId).update({ occupied: false, groupId: '', group: {} })
       }
       groupsRef.doc(group.id).delete()
+    },
+    setCpInitialTime(cp) {
+      let time = 0
+      if (cp.occupied) {
+        time = Math.round(((new Date()).getTime() - (new Date(cp.created)).getTime()) / 1000)
+      }
+      // cannot add property directly due to reactivity issue
+      this.cpInitialTime = { ...this.cpInitialTime, [cp.id]: time }
+    },
+    watchGroup(id) {
+      groupsRef.doc(id).onSnapshot(gp => {
+        // if data exists (not delete)
+        if (gp && gp.data()) {
+          let cpId = gp.data().cpId
+          if (cpId !== '') {
+            // update group info in related cp when info changes
+            checkpointsRef.doc(cpId).update({ group: { name: gp.data().name, oc: gp.data().oc } })
+          }
+        }
+      })
+    },
+    watchCheckpoint(id) {
+      checkpointsRef.doc(id).onSnapshot(cp => {
+        if (cp.data() === undefined) {
+          // if cp is deleted, remove element in cpInitialTime
+          delete this.cpInitialTime[id]
+        }
+      })
     },
     displayEditCp(cp) {
       this.formCp = { ...cp }
