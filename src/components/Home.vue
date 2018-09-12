@@ -1,5 +1,7 @@
 <template>
   <div class="home">
+    <detect-network @detected-condition="detected" />
+    <b-alert :show="!isOnline" variant="danger" fade>You are offline!</b-alert>
     <b-container fluid>
       <b-col>
         <div class="table-top">
@@ -34,8 +36,8 @@
               </td>
               <td class="cp-col">{{ cp.name }}</td>
               <td class="oc-col">{{ cp.oc }}</td>
-              <td class="gp-col">{{ cp.group.name }} </td>
-              <td class="gpoc-col">{{ cp.group.oc }}</td>
+              <td class="gp-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].name }} </td>
+              <td class="gpoc-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].oc }}</td>
               <td class="timer-col">
                 <timer 
                   :initial="cpInitialTime[cp.id]" :isCounting="cp.occupied"
@@ -103,7 +105,8 @@
 
 <script>
 import Firebase from 'firebase'
-import 'Firebase/firestore'
+// import 'Firebase/firestore'
+import detectNetwork from 'v-offline'
 import config from '../../config/dbconfig'
 import TopBar from './TopBar'
 import IconBtn from './IconBtn'
@@ -124,12 +127,15 @@ export default {
     'top-bar': TopBar,
     'icon-btn': IconBtn,
     'edit-form': EditForm,
-    'timer': Timer
+    'timer': Timer,
+    'detect-network': detectNetwork
   },
   data() {
     return {
+      isOnline: true,
       checkpoints: [],
       groups: [],
+      groupInfo: {},
       cpInitialTime: {},
       showDropdown: false,
       showCpForm: false,
@@ -181,7 +187,7 @@ export default {
     this.$bind('checkpoints', checkpointsRef)
       .then(() => {
         this.checkpoints.forEach(cp => {
-          this.setCpInitialTime(cp)
+          // this.setCpInitialTime(cp)
           this.watchCheckpoint(cp.id)
         })
       })
@@ -190,6 +196,9 @@ export default {
       })
   },
   methods: {
+    detected(val) {
+      this.isOnline = val
+    },
     arrive(group, cp) {
       groupsRef.doc(group.id).update({
         occupied: true,
@@ -263,21 +272,23 @@ export default {
       groupsRef.doc(group.id).delete()
     },
     setCpInitialTime(cp) {
-      let time = 0
+      // console.log('sync timer', cp)
       if (cp.occupied) {
-        time = Math.round(((new Date()).getTime() - (new Date(cp.created)).getTime()) / 1000)
+        let time = Math.round(((new Date()).getTime() - (new Date(cp.created)).getTime()) / 1000)
+        // cannot add property directly due to reactivity issue
+        this.cpInitialTime = { ...this.cpInitialTime, [cp.id]: time }
       }
-      // cannot add property directly due to reactivity issue
-      this.cpInitialTime = { ...this.cpInitialTime, [cp.id]: time }
     },
     watchGroup(id) {
       groupsRef.doc(id).onSnapshot(gp => {
         // if data exists (not delete)
-        if (gp && gp.data()) {
+        if (gp.data() !== undefined) {
           let cpId = gp.data().cpId
           if (cpId !== '') {
             // update group info in related cp when info changes
-            checkpointsRef.doc(cpId).update({ group: { name: gp.data().name, oc: gp.data().oc } })
+            this.groupInfo = { ...this.groupInfo, [cpId]: { name: gp.data().name, oc: gp.data().oc } }
+          } else {
+            this.groupInfo = { ...this.groupInfo, [cpId]: {} }
           }
         }
       })
@@ -287,6 +298,10 @@ export default {
         if (cp.data() === undefined) {
           // if cp is deleted, remove element in cpInitialTime
           delete this.cpInitialTime[id]
+        } else if (cp.data().occupied) {
+          // sync timer to prevent delay
+          console.log('cpChange', cp.data())
+          this.setCpInitialTime({ ...cp.data(), id })
         }
       })
     },
