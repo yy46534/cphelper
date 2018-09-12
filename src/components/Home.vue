@@ -211,7 +211,7 @@ export default {
         occupied: true,
         groupId: group.id,
         group: group,
-        created: Date.now()
+        started: Date.now()
       })
     },
     leave(cp) {
@@ -238,7 +238,7 @@ export default {
           {
             groupId: '',
             group: {},
-            created: Date.now(),
+            started: 0,
             remarks: '',
             occupied: false,
             ...this.formCp
@@ -277,7 +277,7 @@ export default {
     setCpInitialTime(cp) {
       // console.log('sync timer', cp)
       if (cp.occupied) {
-        let time = Math.round(((new Date()).getTime() - (new Date(cp.created)).getTime()) / 1000)
+        let time = Math.round(((new Date()).getTime() - (new Date(cp.started)).getTime()) / 100)
         // cannot add property directly due to reactivity issue
         this.cpInitialTime = { ...this.cpInitialTime, [cp.id]: time }
       }

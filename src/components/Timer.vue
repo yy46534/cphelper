@@ -31,8 +31,8 @@ export default {
   computed: {
     timeDisplay() {
       if (this.isCounting) {
-        let min = Math.floor(this.count / 60).toString()
-        let sec = (this.count % 60).toString()
+        let min = Math.floor(this.count / 600).toString()
+        let sec = Math.floor(this.count % 600 / 10).toString()
         return min.padStart(2, '0') + ':' + sec.padStart(2, '0')
       } else {
         return '00:00'
@@ -51,13 +51,13 @@ export default {
       // console.log('startTimer')
       this.count = this.initial
       this.interval = setInterval(() => {
-        if (this.count >= 3600) {
+        if (this.count >= 36000) {
           clearInterval(this.interval)
           console.log('exceed time limit!')
         } else {
           this.count++
         }
-      }, 1000)
+      }, 100)
     },
     stopTimer() {
       // console.log('stopTimer')
