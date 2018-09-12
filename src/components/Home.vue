@@ -197,6 +197,9 @@ export default {
   },
   methods: {
     detected(val) {
+      if (!this.isOnline && val) {
+        window.location.reload()
+      }
       this.isOnline = val
     },
     arrive(group, cp) {
@@ -298,10 +301,16 @@ export default {
         if (cp.data() === undefined) {
           // if cp is deleted, remove element in cpInitialTime
           delete this.cpInitialTime[id]
-        } else if (cp.data().occupied) {
-          // sync timer to prevent delay
-          console.log('cpChange', cp.data())
-          this.setCpInitialTime({ ...cp.data(), id })
+        } else {
+          if (cp.data().occupied) {
+            // sync timer to prevent delay
+            console.log('sync timer: ' + cp.data().name)
+            this.setCpInitialTime({ ...cp.data(), id })
+          } else {
+            // clear group info
+            console.log('clear group info: ' + cp.data().name)
+            this.groupInfo[id] = {}
+          }
         }
       })
     },
