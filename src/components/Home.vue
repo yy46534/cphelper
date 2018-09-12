@@ -2,6 +2,13 @@
   <div class="home">
     <detect-network @detected-condition="detected" />
     <b-alert :show="!isOnline" variant="danger" fade>You are offline!</b-alert>
+    <b-alert
+      :show="dismissCountDown"
+      variant="danger"
+      fade
+      dismissible
+      @dismissed="dismissCountDown = 0"
+      @dismiss-count-down="countDownChanged">{{ alertText }}</b-alert>
     <b-container fluid>
       <b-col>
         <div class="table-top">
@@ -28,36 +35,36 @@
                 :class="field.key + '-col'">{{ field.label }}</th>
             </tr>
           </thead>
-          <tbody>
-            <tr v-for="(cp, i) in checkpoints" :key="i" :class="{ closed: !cp.open }">
-              <td class="edit-col" v-show="showEditCp">
-                <icon-btn size="sm" icon="edit" @click="displayEditCp(cp)"/>
-                <icon-btn size="sm" icon="remove" @click="deleteCp(cp)" />
-              </td>
-              <td class="cp-col">{{ cp.name }}</td>
-              <td class="oc-col">{{ cp.oc }}</td>
-              <td class="gp-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].name }} </td>
-              <td class="gpoc-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].oc }}</td>
-              <td class="timer-col">
-                <timer 
-                  :initial="cpInitialTime[cp.id]" :isCounting="cp.occupied"
-                  @stopTimer="cpInitialTime[cp.id] = 0" />
-              </td>
-              <td class="remarks-col">{{ cp.remarks }}</td>
-              <td class="actions-col">
-                <template v-if="cp.open">
-                  <b-dropdown v-if="!cp.occupied" size="sm" text="Arrive">
-                    <b-dropdown-item-button 
-                      v-for="(group, i) in groups" :key="i"
-                      v-if="!group.occupied"
-                      @click="arrive(group, cp)">
-                      {{ group.name }}
-                    </b-dropdown-item-button> 
-                  </b-dropdown>
-                  <b-button v-else size="sm" @click="leave(cp)">Leave</b-button>
-                </template>
-              </td>
-            </tr>
+          <tbody name="fade" is="transition-group">
+              <tr v-for="cp in checkpoints" :key="cp.id" :class="{ closed: !cp.open }">
+                <td class="edit-col" v-show="showEditCp">
+                  <icon-btn size="sm" icon="edit" @click="displayEditCp(cp)"/>
+                  <icon-btn size="sm" icon="remove" @click="deleteCp(cp)" />
+                </td>
+                <td class="cp-col">{{ cp.name }}</td>
+                <td class="oc-col">{{ cp.oc }}</td>
+                <td class="gp-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].name }} </td>
+                <td class="gpoc-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].oc }}</td>
+                <td class="timer-col">
+                  <timer 
+                    :initial="cpInitialTime[cp.id]" :isCounting="cp.occupied"
+                    @stopTimer="cpInitialTime[cp.id] = 0" />
+                </td>
+                <td class="remarks-col">{{ cp.remarks }}</td>
+                <td class="actions-col">
+                  <template v-if="cp.open">
+                    <b-dropdown v-if="!cp.occupied" size="sm" text="Arrive">
+                      <b-dropdown-item-button 
+                        v-for="(group, i) in groups" :key="i"
+                        v-if="!group.occupied"
+                        @click="arrive(group, cp)">
+                        {{ group.name }}
+                      </b-dropdown-item-button> 
+                    </b-dropdown>
+                    <b-button v-else size="sm" @click="leave(cp)">Leave</b-button>
+                  </template>
+                </td>
+              </tr>
           </tbody>
         </table>
       </b-col>
@@ -86,15 +93,15 @@
               <th scope="col">Occupied</th>
             </tr>
           </thead>
-          <tbody>
-            <tr v-for="(gp, i) in groups" :key="i">
+          <tbody name="fade" is="transition-group">
+            <tr v-for="gp in groups" :key="gp.id">
               <td class="edit-col" v-if="showEditGp">
                 <icon-btn size="sm" icon="edit" @click="displayEditGp(gp)" />
                 <icon-btn size="sm" icon="remove" @click="deleteGp(gp)" />
               </td>
               <td>{{ gp.name }}</td>
               <td>{{ gp.oc }}</td>
-              <td>{{ gp.occupied }}</td>
+              <td>{{ gp.occupied ? 'Yes' : 'No' }}</td>
             </tr>
           </tbody>
         </table>
@@ -121,6 +128,7 @@ db.settings(settings)
 
 const checkpointsRef = db.collection('checkpoints')
 const groupsRef = db.collection('groups')
+const alertFadeTime = 2
 
 export default {
   components: {
@@ -137,6 +145,8 @@ export default {
       groups: [],
       groupInfo: {},
       cpInitialTime: {},
+      alertText: '',
+      dismissCountDown: 0,
       showDropdown: false,
       showCpForm: false,
       showGpForm: false,
@@ -174,7 +184,7 @@ export default {
     }
   },
   mounted() {
-    this.$bind('groups', groupsRef)
+    this.$bind('groups', groupsRef.orderBy('name'))
       .then(() => {
         // groups loaded, set onSnapshot watchGroup
         this.groups.forEach(group => {
@@ -184,10 +194,9 @@ export default {
       .catch(err => {
         console.log('error in loading groups', err)
       })
-    this.$bind('checkpoints', checkpointsRef)
+    this.$bind('checkpoints', checkpointsRef.orderBy('name'))
       .then(() => {
         this.checkpoints.forEach(cp => {
-          // this.setCpInitialTime(cp)
           this.watchCheckpoint(cp.id)
         })
       })
@@ -210,7 +219,6 @@ export default {
       checkpointsRef.doc(cp.id).update({
         occupied: true,
         groupId: group.id,
-        group: group,
         started: Date.now()
       })
     },
@@ -221,11 +229,30 @@ export default {
       })
       checkpointsRef.doc(cp.id).update({
         occupied: false,
-        groupId: '',
-        group: {}
+        groupId: ''
       })
+      this.groupInfo[cp.id] = {}
     },
     submitCp() {
+      // checkings before submit
+      if (!this.formCp.name) {
+        this.alertText = 'Please fill in checkpoint name'
+        this.dismissCountDown = alertFadeTime
+        return
+      } else {
+        let index
+        if (this.editingCp) {
+          index = this.checkpoints.findIndex(e => e.name === this.formCp.name && e.name !== this.editingCp.name)
+        } else {
+          index = this.checkpoints.findIndex(e => e.name === this.formCp.name)
+        }
+        if (index >= 0) {
+          this.alertText = 'Checkpoint name duplicate'
+          this.dismissCountDown = alertFadeTime
+          return
+        }
+      }
+      // submit checkpoint
       if (this.editingCp) {
         checkpointsRef.doc(this.editingCp.id).update({ ...this.formCp })
         // if cp status change from open to close
@@ -237,7 +264,6 @@ export default {
         checkpointsRef.add(
           {
             groupId: '',
-            group: {},
             started: 0,
             remarks: '',
             occupied: false,
@@ -246,9 +272,29 @@ export default {
             this.watchCheckpoint(docRef.id)
           })
       }
+      // toggle display
       this.showCpForm = false
     },
     submitGp() {
+      // checkings before submit
+      if (!this.formGp.name) {
+        this.alertText = 'Please fill in group name'
+        this.dismissCountDown = alertFadeTime
+        return
+      } else {
+        let index
+        if (this.editingGp) {
+          index = this.groups.findIndex(e => e.name === this.formGp.name && e.name !== this.editingGp.name)
+        } else {
+          index = this.groups.findIndex(e => e.name === this.formGp.name)
+        }
+        if (index >= 0) {
+          this.alertText = 'Group name duplicate'
+          this.dismissCountDown = alertFadeTime
+          return
+        }
+      }
+      // submit group
       if (this.editingGp) {
         groupsRef.doc(this.editingGp.id).update({ ...this.formGp })
       } else {
@@ -257,6 +303,7 @@ export default {
           this.watchGroup(docRef.id)
         })
       }
+      // toggle displays
       this.editingGp = {}
       this.showGpForm = false
       this.formGp = {}
@@ -271,6 +318,7 @@ export default {
     deleteGp(group) {
       if (group.cpId !== '') {
         checkpointsRef.doc(group.cpId).update({ occupied: false, groupId: '', group: {} })
+        this.groupInfo[group.cpId] = {}
       }
       groupsRef.doc(group.id).delete()
     },
@@ -298,21 +346,27 @@ export default {
     },
     watchCheckpoint(id) {
       checkpointsRef.doc(id).onSnapshot(cp => {
+        let source = cp.metadata.hasPendingWrites ? 'Local' : 'Server'
         if (cp.data() === undefined) {
           // if cp is deleted, remove element in cpInitialTime
           delete this.cpInitialTime[id]
         } else {
-          if (cp.data().occupied) {
-            // sync timer to prevent delay
-            console.log('sync timer: ' + cp.data().name)
-            this.setCpInitialTime({ ...cp.data(), id })
-          } else {
-            // clear group info
-            console.log('clear group info: ' + cp.data().name)
-            this.groupInfo[id] = {}
+          if (source === 'Server') {
+            if (cp.data().occupied) {
+              // sync timer to prevent delay
+              console.log('sync timer: ' + cp.data().name)
+              this.setCpInitialTime({ ...cp.data(), id })
+            } else {
+              // clear group info
+              console.log('clear group info: ' + cp.data().name)
+              this.groupInfo[id] = {}
+            }
           }
         }
       })
+    },
+    countDownChanged(val) {
+      this.dismissCountDown = val
     },
     displayEditCp(cp) {
       this.formCp = { ...cp }
