@@ -9,68 +9,85 @@
       dismissible
       @dismissed="dismissCountDown = 0"
       @dismiss-count-down="countDownChanged">{{ alertText }}</b-alert>
+    
     <b-container fluid>
-      <b-col>
-        <div class="table-top">
-          <top-bar
-            v-show="showCpBar"
-            :edit.sync="showEditCp"
-            @add="displayAddCp" />
-          <edit-form
-            :show.sync="showCpForm"
-            :data="formCp"
-            :type="'CP'"
-            :isEdit="editingCp !== null"
-            @update:show="formCp = {}"
-            @submit="submitCp"
-            @changeStatus="changeFormStatus" />
-        </div>
-        <table class="table cp-table">
-          <thead>
-            <tr>
-              <th class="edit-col" v-show="showEditCp"></th>
-              <th
-                v-for="(field, i) in cpFields" :key="i"
-                scope="col"
-                :class="field.key + '-col'">{{ field.label }}</th>
+      <div class="user-code-bar">
+        <b-form @submit.stop="login">
+          <b-form-row v-if="!loggedin">
+            <b-col>
+              <b-input-group size="sm" prepend="User Code">
+                <b-form-input v-model="userCodeInput"/>
+              </b-input-group>
+            </b-col>
+            <b-col cols="auto">
+              <b-button size="sm" type="submit">Enter</b-button>
+            </b-col>
+          </b-form-row>
+          <div v-else>User: {{ currentRole }}
+            <a class="logout-link" href="#" @click="logout">Logout</a>
+          </div>
+        </b-form>
+      </div>
+
+      <div v-if="currentRole === 'admin'" class="table-top">
+        <top-bar
+          v-show="showCpBar"
+          :edit.sync="showEditCp"
+          @add="displayAddCp" />
+        <edit-form
+          :show.sync="showCpForm"
+          :data="formCp"
+          :type="'CP'"
+          :isEdit="editingCp !== null"
+          @update:show="formCp = {}"
+          @submit="submitCp"
+          @changeStatus="changeFormStatus" />
+      </div>
+      <table class="table cp-table">
+        <thead>
+          <tr>
+            <th class="edit-col" v-show="showEditCp"></th>
+            <th
+              v-for="(field, i) in cpFields" :key="i"
+              scope="col"
+              :class="field.key + '-col'">{{ field.label }}</th>
+          </tr>
+        </thead>
+        <tbody name="fade" is="transition-group">
+            <tr v-for="cp in checkpoints" :key="cp.id" :class="{ closed: !cp.open }">
+              <td class="edit-col" v-show="showEditCp">
+                <icon-btn size="sm" icon="edit" @click="displayEditCp(cp)"/>
+                <icon-btn size="sm" icon="remove" @click="deleteCp(cp)" />
+              </td>
+              <td class="cp-col">{{ cp.name }}</td>
+              <td class="oc-col">{{ cp.oc }}</td>
+              <td class="gp-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].name }} </td>
+              <td class="gpoc-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].oc }}</td>
+              <td class="timer-col">
+                <timer 
+                  :initial="cpInitialTime[cp.id]" :isCounting="cp.occupied"
+                  @stopTimer="cpInitialTime[cp.id] = 0" />
+              </td>
+              <td class="remarks-col">{{ cp.remarks }}</td>
+              <td class="actions-col">
+                <template v-if="cp.open && currentRole === 'admin'">
+                  <b-dropdown v-if="!cp.occupied" size="sm" text="Arrive">
+                    <b-dropdown-item-button 
+                      v-for="(group, i) in groups" :key="i"
+                      v-if="!group.occupied"
+                      @click="arrive(group, cp)">
+                      {{ group.name }}
+                    </b-dropdown-item-button> 
+                  </b-dropdown>
+                  <b-button v-else size="sm" @click="leave(cp)">Leave</b-button>
+                </template>
+              </td>
             </tr>
-          </thead>
-          <tbody name="fade" is="transition-group">
-              <tr v-for="cp in checkpoints" :key="cp.id" :class="{ closed: !cp.open }">
-                <td class="edit-col" v-show="showEditCp">
-                  <icon-btn size="sm" icon="edit" @click="displayEditCp(cp)"/>
-                  <icon-btn size="sm" icon="remove" @click="deleteCp(cp)" />
-                </td>
-                <td class="cp-col">{{ cp.name }}</td>
-                <td class="oc-col">{{ cp.oc }}</td>
-                <td class="gp-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].name }} </td>
-                <td class="gpoc-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].oc }}</td>
-                <td class="timer-col">
-                  <timer 
-                    :initial="cpInitialTime[cp.id]" :isCounting="cp.occupied"
-                    @stopTimer="cpInitialTime[cp.id] = 0" />
-                </td>
-                <td class="remarks-col">{{ cp.remarks }}</td>
-                <td class="actions-col">
-                  <template v-if="cp.open">
-                    <b-dropdown v-if="!cp.occupied" size="sm" text="Arrive">
-                      <b-dropdown-item-button 
-                        v-for="(group, i) in groups" :key="i"
-                        v-if="!group.occupied"
-                        @click="arrive(group, cp)">
-                        {{ group.name }}
-                      </b-dropdown-item-button> 
-                    </b-dropdown>
-                    <b-button v-else size="sm" @click="leave(cp)">Leave</b-button>
-                  </template>
-                </td>
-              </tr>
-          </tbody>
-        </table>
-      </b-col>
+        </tbody>
+      </table>
 
       <b-col sm="12" md="4" lg="5">
-        <div class="table-top">
+        <div v-if="currentRole === 'admin'" class="table-top">
           <top-bar
             v-show="showGpBar"
             :edit.sync="showEditGp"
@@ -106,6 +123,7 @@
           </tbody>
         </table>
       </b-col>
+
     </b-container>
   </div>
 </template>
@@ -128,8 +146,9 @@ db.settings(settings)
 
 const checkpointsRef = db.collection('checkpoints')
 const groupsRef = db.collection('groups')
+const usersRef = db.collection('users')
 const alertFadeTime = 2
-const syncTimerInterval = 20
+const syncTimerInterval = 10
 
 export default {
   components: {
@@ -141,12 +160,17 @@ export default {
   },
   data() {
     return {
+      finishLoading: false,
       isOnline: true,
+      users: [],
+      currentRole: '',
+      loggedin: false,
       checkpoints: [],
       groups: [],
       groupInfo: {},
       intervals: {},
       cpInitialTime: {},
+      userCodeInput: '',
       alertText: '',
       dismissCountDown: 0,
       showDropdown: false,
@@ -186,7 +210,7 @@ export default {
     }
   },
   mounted() {
-    this.$bind('groups', groupsRef.orderBy('name'))
+    let loadGroups = this.$bind('groups', groupsRef.orderBy('name'))
       .then(() => {
         // groups loaded, set onSnapshot watchGroup
         this.groups.forEach(group => {
@@ -196,7 +220,7 @@ export default {
       .catch(err => {
         console.log('error in loading groups', err)
       })
-    this.$bind('checkpoints', checkpointsRef.orderBy('name'))
+    let loadCheckpoints = this.$bind('checkpoints', checkpointsRef.orderBy('name'))
       .then(() => {
         this.checkpoints.forEach(cp => {
           this.watchCheckpoint(cp.id)
@@ -205,6 +229,16 @@ export default {
       .catch(err => {
         console.log('error in loading checkpoints', err)
       })
+    let loadUsers = this.$bind('users', usersRef)
+    // set finish loading to true
+    Promise.all([loadGroups, loadCheckpoints, loadUsers]).then(() => {
+      this.finishLoading = true
+    })
+
+    if (localStorage.getItem('userCode')) {
+      this.currentRole = localStorage.getItem('userCode')
+      this.loggedin = true
+    }
   },
   methods: {
     detected(val) {
@@ -212,6 +246,25 @@ export default {
         window.location.reload()
       }
       this.isOnline = val
+    },
+    login() {
+      if (this.finishLoading) {
+        let index = this.users.findIndex(e => e.code === this.userCodeInput)
+        if (index >= 0) {
+          this.currentRole = this.users[index].role
+          this.loggedin = true
+          localStorage.setItem('userCode', this.currentRole)
+        } else {
+          this.alertText = 'No such user'
+          this.dismissCountDown = alertFadeTime
+        }
+        this.userCodeInput = ''
+      }
+    },
+    logout() {
+      this.currentRole = ''
+      this.loggedin = false
+      localStorage.removeItem('userCode')
     },
     arrive(group, cp) {
       groupsRef.doc(group.id).update({
@@ -407,6 +460,13 @@ export default {
 </script>
 
 <style scoped>
+.user-code-bar {
+  margin-bottom: 15px;
+  text-align: left;
+}
+.logout-link {
+  float: right;
+}
 .table-top {
   height: 31px;
 }

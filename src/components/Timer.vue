@@ -56,18 +56,28 @@ export default {
     startTimer() {
       // console.log('startTimer')
       this.count = this.initial
+      // const countUp = () => {
+      //   this.count++
+      //   if (this.timeout) {
+      //     clearTimeout(this.timeout)
+      //     this.timeout = 0
+      //   }
+      //   this.timeout = setTimeout(countUp, 100)
+      // }
+      // countUp()
       this.interval = setInterval(() => {
         if (this.count >= limit) {
           clearInterval(this.interval)
           console.log('exceed time limit!')
         } else {
-          this.count++
+          this.count += 5
         }
-      }, 100)
+      }, 500)
     },
     stopTimer() {
       // console.log('stopTimer')
       this.$emit('stopTimer')
+      // clearTimeout(this.timeout)
       clearInterval(this.interval)
       this.count = 0
     }
