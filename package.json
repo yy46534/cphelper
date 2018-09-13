@@ -14,6 +14,7 @@
     "axios": "^0.18.0",
     "bootstrap": "^4.0.0-beta.2",
     "bootstrap-vue": "latest",
+    "express": "^4.16.3",
     "firebase": "^5.4.2",
     "popper.js": "^1.12.9",
     "postcss-nesting": "^6.0.0",
