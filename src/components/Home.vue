@@ -129,6 +129,7 @@ db.settings(settings)
 const checkpointsRef = db.collection('checkpoints')
 const groupsRef = db.collection('groups')
 const alertFadeTime = 2
+const syncTimerInterval = 20
 
 export default {
   components: {
@@ -144,6 +145,7 @@ export default {
       checkpoints: [],
       groups: [],
       groupInfo: {},
+      intervals: {},
       cpInitialTime: {},
       alertText: '',
       dismissCountDown: 0,
@@ -323,8 +325,8 @@ export default {
       groupsRef.doc(group.id).delete()
     },
     setCpInitialTime(cp) {
-      // console.log('sync timer', cp)
       if (cp.occupied) {
+        console.log('sync timer: ' + cp.name)
         let time = Math.round(((new Date()).getTime() - (new Date(cp.started)).getTime()) / 100)
         // cannot add property directly due to reactivity issue
         this.cpInitialTime = { ...this.cpInitialTime, [cp.id]: time }
@@ -346,21 +348,26 @@ export default {
     },
     watchCheckpoint(id) {
       checkpointsRef.doc(id).onSnapshot(cp => {
-        let source = cp.metadata.hasPendingWrites ? 'Local' : 'Server'
+        // let source = cp.metadata.hasPendingWrites ? 'Local' : 'Server'
         if (cp.data() === undefined) {
           // if cp is deleted, remove element in cpInitialTime
           delete this.cpInitialTime[id]
         } else {
-          if (source === 'Server') {
-            if (cp.data().occupied) {
-              // sync timer to prevent delay
-              console.log('sync timer: ' + cp.data().name)
+          if (cp.data().occupied) {
+            // sync timer every 20s to prevent delay
+            this.setCpInitialTime({ ...cp.data(), id })
+            this.intervals[id] = setInterval(() => {
               this.setCpInitialTime({ ...cp.data(), id })
-            } else {
-              // clear group info
-              console.log('clear group info: ' + cp.data().name)
-              this.groupInfo[id] = {}
+            }, syncTimerInterval * 1000)
+          } else {
+            // clear sync timer interval
+            if (this.intervals[id]) {
+              clearInterval(this.intervals[id])
+              delete this.intervals[id]
             }
+            // clear group info
+            console.log('clear group info: ' + cp.data().name)
+            this.groupInfo[id] = {}
           }
         }
       })
@@ -390,6 +397,11 @@ export default {
       this.editingGp = null
       this.showGpForm = true
     }
+  },
+  beforeDestroy() {
+    this.intervals.forEach(e => {
+      clearInterval(e)
+    })
   }
 }
 </script>

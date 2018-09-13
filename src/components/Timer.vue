@@ -5,6 +5,8 @@
 </template>
 
 <script>
+const limit = 36000
+
 export default {
   props: {
     initial: { type: Number, default: 0 },
@@ -31,9 +33,13 @@ export default {
   computed: {
     timeDisplay() {
       if (this.isCounting) {
-        let min = Math.floor(this.count / 600).toString()
-        let sec = Math.floor(this.count % 600 / 10).toString()
-        return min.padStart(2, '0') + ':' + sec.padStart(2, '0')
+        if (this.count < limit) {
+          let min = Math.floor(this.count / 600).toString()
+          let sec = Math.floor(this.count % 600 / 10).toString()
+          return min.padStart(2, '0') + ':' + sec.padStart(2, '0')
+        } else {
+          return '60:00'
+        }
       } else {
         return '00:00'
       }
@@ -51,7 +57,7 @@ export default {
       // console.log('startTimer')
       this.count = this.initial
       this.interval = setInterval(() => {
-        if (this.count >= 36000) {
+        if (this.count >= limit) {
           clearInterval(this.interval)
           console.log('exceed time limit!')
         } else {
