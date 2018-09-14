@@ -47,10 +47,13 @@
         <thead>
           <tr>
             <th class="edit-col" v-show="showEditCp"></th>
-            <th
-              v-for="(field, i) in cpFields" :key="i"
-              scope="col"
-              :class="field.key + '-col'">{{ field.label }}</th>
+            <th class="cp-col">CP</th>
+            <th class="oc-col">OC</th>
+            <th class="gp-col">GP</th>
+            <th class="gpoc-col d-none d-sm-table-cell">OC</th>
+            <th class="time-col">Time</th>
+            <th class="remarks-col d-none d-sm-table-cell">Remarks</th>
+            <th class="actions-col" :class="{'d-none d-sm-table-cell':showEditCp}"></th>
           </tr>
         </thead>
         <tbody name="fade" is="transition-group">
@@ -62,14 +65,16 @@
               <td class="cp-col">{{ cp.name }}</td>
               <td class="oc-col">{{ cp.oc }}</td>
               <td class="gp-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].name }} </td>
-              <td class="gpoc-col">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].oc }}</td>
+              <td class="gpoc-col d-none d-sm-table-cell">{{ groupInfo[cp.id] === undefined ? '' : groupInfo[cp.id].oc }}</td>
               <td class="timer-col">
                 <timer 
                   :initial="cpInitialTime[cp.id]" :isCounting="cp.occupied"
                   @stopTimer="cpInitialTime[cp.id] = 0" />
               </td>
-              <td class="remarks-col">{{ cp.remarks }}</td>
-              <td class="actions-col">
+              <td class="remarks-col d-none d-sm-table-cell">{{ cp.remarks }}</td>
+              <td
+                class="actions-col"
+                :class="{'d-none d-sm-table-cell' : showEditCp}">
                 <template v-if="cp.open && currentRole === 'admin'">
                   <b-dropdown v-if="!cp.occupied" size="sm" text="Arrive">
                     <b-dropdown-item-button 
@@ -182,16 +187,7 @@ export default {
       editingCp: null,
       isEditCp: false,
       formCp: { },
-      formGp: { },
-      cpFields: [
-        { key: 'cp', label: 'CP' },
-        { key: 'oc', label: 'OC' },
-        { key: 'gp', label: 'GP' },
-        { key: 'gpoc', label: 'OC' },
-        { key: 'time', label: 'Time' },
-        { key: 'remarks', label: 'Remarks' },
-        { key: 'actions', label: '' }
-      ]
+      formGp: { }
     }
   },
   // use manual binding in mounted
@@ -264,6 +260,8 @@ export default {
     logout() {
       this.currentRole = ''
       this.loggedin = false
+      this.showEditCp = false
+      this.showEditGp = false
       localStorage.removeItem('userCode')
     },
     arrive(group, cp) {
@@ -467,16 +465,17 @@ export default {
 .logout-link {
   float: right;
 }
-.table-top {
+/* .table-top {
   height: 31px;
-}
+} */
 .table {
   margin-top: 10px;
-  table-layout: fixed;
+  /* table-layout: fixed; */
   width: 100%;
 }
 .table td {
   vertical-align: middle;
+  padding: 8px;
 }
 .edit-col {
   width: 75px;
